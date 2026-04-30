@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   collection, addDoc, query, where, getDocs,
   updateDoc, doc, arrayUnion, serverTimestamp
