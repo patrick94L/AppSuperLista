@@ -58,14 +58,21 @@ export default function App() {
         const userDoc = await getDoc(userDocRef);
 
         if (!userDoc.exists()) {
-          await setDoc(userDocRef, {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            familyId: null
+          // Solo crear perfil si el email está verificado o es Google
+          if (firebaseUser.emailVerified || firebaseUser.providerData[0]?.providerId === 'google.com') {
+            await setDoc(userDocRef, {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL,
+              familyId: null
           });
-        }
+        } else {
+            // Email no verificado — cerrar sesión
+            await auth.signOut();
+            return;
+            }
+          }
 
         let unsubFamily: (() => void) | null = null;
         const unsubUser = onSnapshot(userDocRef, (docSnap) => {
