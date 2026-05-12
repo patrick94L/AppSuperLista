@@ -3,7 +3,8 @@ import {
   signInWithPopup,
   signInWithRedirect,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  sendEmailVerification
 } from 'firebase/auth';
 import { ShoppingCart, Mail, Lock } from 'lucide-react';
 import { auth, googleProvider } from '../lib/firebase';
@@ -15,8 +16,8 @@ export default function Login() {
   const [isRegistering, setIsRegistering] = React.useState(false);
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const [verificationSent, setVerificationSent] = React.useState(false);
 
-  // Detect if running as installed PWA or mobile browser
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const isPWA = window.matchMedia('(display-mode: standalone)').matches;
 
@@ -24,7 +25,6 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      // Use redirect on mobile/PWA to avoid popup blocking
       if (isMobile || isPWA) {
         await signInWithRedirect(auth, googleProvider);
       } else {
@@ -43,9 +43,16 @@ export default function Login() {
     setLoading(true);
     try {
       if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        await sendEmailVerification(result.user);
+        await auth.signOut();
+        setVerificationSent(true);
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        if (!result.user.emailVerified) {
+          await auth.signOut();
+          setError('Debes verificar tu correo antes de ingresar. Revisa tu bandeja de entrada.');
+        }
       }
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -56,6 +63,8 @@ export default function Login() {
           setError('Este correo ya está registrado');
         } else if (msg.includes('weak-password')) {
           setError('La contraseña debe tener al menos 6 caracteres');
+        } else if (msg.includes('invalid-email')) {
+          setError('El correo ingresado no es válido');
         } else {
           setError('Error al iniciar sesión. Intenta de nuevo.');
         }
@@ -64,6 +73,32 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  if (verificationSent) {
+    return (
+      <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-neutral-100 text-center"
+        >
+          <div className="text-5xl mb-4">📬</div>
+          <h2 className="text-2xl font-bold text-neutral-900 mb-3">Revisa tu correo</h2>
+          <p className="text-neutral-500 text-sm mb-2">Enviamos un link de verificación a:</p>
+          <p className="font-bold text-neutral-800 mb-6">{email}</p>
+          <p className="text-neutral-400 text-xs mb-8">
+            Una vez que confirmes tu correo, vuelve aquí e inicia sesión.
+          </p>
+          <button
+            onClick={() => { setVerificationSent(false); setIsRegistering(false); }}
+            className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all"
+          >
+            Volver al inicio de sesión
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-6">
