@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { Plus, Trash2, CheckCircle2, Circle, ShoppingCart, Settings as SettingsIcon, Users, Trash } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, db } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { ShoppingItem } from '../types';
 import { cn } from '../lib/utils';
