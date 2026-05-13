@@ -45,34 +45,34 @@ export default function App() {
   const { user, familyId, isAuthReady, setUser, setFamily, setAuthReady } = useStore();
 
   useEffect(() => {
-    // Handle redirect result from Google sign-in on mobile
     getRedirectResult(auth).catch((error) => {
       console.error('Redirect result error:', error);
     });
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Bloquear acceso si email no verificado (excepto Google)
+        const isGoogle = firebaseUser.providerData[0]?.providerId === 'google.com';
+        if (!firebaseUser.emailVerified && !isGoogle) {
+          await auth.signOut();
+          setAuthReady(true);
+          return;
+        }
+
         setUser(firebaseUser);
 
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
 
         if (!userDoc.exists()) {
-          // Solo crear perfil si el email está verificado o es Google
-          if (firebaseUser.emailVerified || firebaseUser.providerData[0]?.providerId === 'google.com') {
-            await setDoc(userDocRef, {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-              familyId: null
+          await setDoc(userDocRef, {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            familyId: null
           });
-        } else {
-            // Email no verificado — cerrar sesión
-            await auth.signOut();
-            return;
-            }
-          }
+        }
 
         let unsubFamily: (() => void) | null = null;
         const unsubUser = onSnapshot(userDocRef, (docSnap) => {
