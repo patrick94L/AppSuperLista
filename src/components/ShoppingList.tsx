@@ -1,9 +1,10 @@
+import Settings from './Settings';
 import React, { useState, useEffect } from 'react';
 import {
   collection, addDoc, updateDoc, deleteDoc,
   doc, onSnapshot, query, orderBy, serverTimestamp
 } from 'firebase/firestore';
-import { Plus, Trash2, CheckCircle2, Circle, ShoppingCart, LogOut, Users, Trash } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, Circle, ShoppingCart, Settings as SettingsIcon, Users, Trash } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from '../lib/firebase';
 import { useStore } from '../store/useStore';
@@ -17,6 +18,7 @@ export default function ShoppingList() {
   const [newItemPrice, setNewItemPrice] = useState('');
   const [loading, setLoading] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     if (!familyId) return;
@@ -110,11 +112,11 @@ export default function ShoppingList() {
             </div>
           </div>
           <button
-            onClick={() => auth.signOut()}
-            className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
-            title="Cerrar sesión"
-          >
-            <LogOut size={20} />
+              onClick={() => setShowSettings(true)}
+              className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
+              title="Ajustes"
+            >
+              <SettingsIcon size={20} />
           </button>
         </div>
 
@@ -277,6 +279,7 @@ export default function ShoppingList() {
           </div>
         )}
       </main>
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
