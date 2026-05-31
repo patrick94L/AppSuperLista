@@ -22,3 +22,17 @@ export interface ShoppingItem {
   addedBy: string;
   createdAt: unknown;
 }
+
+export interface HistoryItem {
+  name: string;
+  priceEstimate: number;
+}
+
+export interface HistoryEntry {
+  id: string;
+  date: unknown;
+  total: number;
+  itemCount: number;
+  items: HistoryItem[];
+  archivedBy: string;
+}

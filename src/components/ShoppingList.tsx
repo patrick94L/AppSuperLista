@@ -10,6 +10,8 @@ import { db } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { ShoppingItem } from '../types';
 import { cn } from '../lib/utils';
+import History from './History';
+import { History as HistoryIcon } from 'lucide-react';
 
 export default function ShoppingList() {
   const { user, familyId, familyName } = useStore();
@@ -19,6 +21,7 @@ export default function ShoppingList() {
   const [loading, setLoading] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (!familyId) return;
@@ -84,11 +87,30 @@ export default function ShoppingList() {
   };
 
   const clearPurchased = async () => {
-    if (!familyId) return;
-    const purchased = items.filter(i => i.purchased);
+  if (!familyId || !user) return;
+  const purchased = items.filter(i => i.purchased);
+  if (purchased.length === 0) return;
+
+  const total = purchased.reduce((sum, i) => sum + (i.priceEstimate || 0), 0);
+
+  try {
+    // Guardar en historial
+    await addDoc(collection(db, 'families', familyId, 'historial'), {
+      date: serverTimestamp(),
+      total,
+      itemCount: purchased.length,
+      items: purchased.map(i => ({ name: i.name, priceEstimate: i.priceEstimate || 0 })),
+      archivedBy: user.uid
+    });
+
+    // Eliminar comprados
     await Promise.all(purchased.map(i => deleteItem(i.id)));
-    setShowClearConfirm(false);
-  };
+  } catch (error) {
+    console.error('Error archivando compra:', error);
+  }
+
+  setShowClearConfirm(false);
+};
 
   const totalEstimated = items.reduce((sum, item) => sum + (item.priceEstimate || 0), 0);
   const totalPurchased = items.filter(i => i.purchased).reduce((sum, item) => sum + (item.priceEstimate || 0), 0);
@@ -111,6 +133,13 @@ export default function ShoppingList() {
               </p>
             </div>
           </div>
+          <button
+            onClick={() => setShowHistory(true)}
+            className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
+            title="Historial"
+          >
+            <HistoryIcon size={20} />
+          </button>
           <button
               onClick={() => setShowSettings(true)}
               className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
@@ -280,6 +309,7 @@ export default function ShoppingList() {
         )}
       </main>
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showHistory && <History onClose={() => setShowHistory(false)} />}
     </div>
   );
 }
