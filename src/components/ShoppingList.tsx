@@ -1,27 +1,33 @@
 import Settings from './Settings';
-import React, { useState, useEffect } from 'react';
+import History from './History';
+import ItemDetail from './ItemDetail';
+import { useState, useEffect } from 'react';
 import {
   collection, addDoc, updateDoc, deleteDoc,
   doc, onSnapshot, query, orderBy, serverTimestamp
 } from 'firebase/firestore';
-import { Plus, Trash2, CheckCircle2, Circle, ShoppingCart, Settings as SettingsIcon, Users, Trash } from 'lucide-react';
+import {
+  Plus, Trash2, CheckCircle2, Circle, ShoppingCart,
+  Settings as SettingsIcon, History as HistoryIcon,
+  Users, Trash, Minus
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { ShoppingItem } from '../types';
 import { cn } from '../lib/utils';
-import History from './History';
-import { History as HistoryIcon } from 'lucide-react';
 
 export default function ShoppingList() {
   const { user, familyId, familyName } = useStore();
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
+  const [newItemQty, setNewItemQty] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ShoppingItem | null>(null);
 
   useEffect(() => {
     if (!familyId) return;
@@ -56,11 +62,14 @@ export default function ShoppingList() {
         name: newItemName.trim(),
         purchased: false,
         priceEstimate: parseFloat(newItemPrice) || 0,
+        priceReal: 0,
+        quantity: newItemQty,
         addedBy: user.uid,
         createdAt: serverTimestamp()
       });
       setNewItemName('');
       setNewItemPrice('');
+      setNewItemQty(1);
     } catch (error) {
       console.error('Error adding item:', error);
     }
@@ -77,6 +86,27 @@ export default function ShoppingList() {
     }
   };
 
+  const handleCircleClick = (item: ShoppingItem) => {
+    if (item.purchased) {
+      togglePurchased(item);
+    } else {
+      setSelectedItem(item);
+    }
+  };
+
+  const confirmPurchase = async (priceReal: number) => {
+    if (!familyId || !selectedItem) return;
+    try {
+      await updateDoc(doc(db, 'families', familyId, 'shoppingList', selectedItem.id), {
+        purchased: true,
+        priceReal
+      });
+    } catch (error) {
+      console.error('Error updating item:', error);
+    }
+    setSelectedItem(null);
+  };
+
   const deleteItem = async (id: string) => {
     if (!familyId) return;
     try {
@@ -87,33 +117,43 @@ export default function ShoppingList() {
   };
 
   const clearPurchased = async () => {
-  if (!familyId || !user) return;
-  const purchased = items.filter(i => i.purchased);
-  if (purchased.length === 0) return;
+    if (!familyId || !user) return;
+    const purchased = items.filter(i => i.purchased);
+    if (purchased.length === 0) return;
 
-  const total = purchased.reduce((sum, i) => sum + (i.priceEstimate || 0), 0);
+    const total = purchased.reduce(
+      (sum, i) => sum + (i.priceReal > 0 ? i.priceReal : i.priceEstimate || 0) * (i.quantity || 1),
+      0
+    );
 
-  try {
-    // Guardar en historial
-    await addDoc(collection(db, 'families', familyId, 'historial'), {
-      date: serverTimestamp(),
-      total,
-      itemCount: purchased.length,
-      items: purchased.map(i => ({ name: i.name, priceEstimate: i.priceEstimate || 0 })),
-      archivedBy: user.uid
-    });
+    try {
+      await addDoc(collection(db, 'families', familyId, 'historial'), {
+        date: serverTimestamp(),
+        total,
+        itemCount: purchased.length,
+        items: purchased.map(i => ({
+          name: i.name,
+          priceEstimate: i.priceEstimate || 0,
+          priceReal: i.priceReal || 0,
+          quantity: i.quantity || 1
+        })),
+        archivedBy: user.uid
+      });
 
-    // Eliminar comprados
-    await Promise.all(purchased.map(i => deleteItem(i.id)));
-  } catch (error) {
-    console.error('Error archivando compra:', error);
-  }
+      await Promise.all(purchased.map(i => deleteItem(i.id)));
+    } catch (error) {
+      console.error('Error archivando compra:', error);
+    }
 
-  setShowClearConfirm(false);
-};
+    setShowClearConfirm(false);
+  };
 
-  const totalEstimated = items.reduce((sum, item) => sum + (item.priceEstimate || 0), 0);
-  const totalPurchased = items.filter(i => i.purchased).reduce((sum, item) => sum + (item.priceEstimate || 0), 0);
+  const totalEstimated = items.reduce(
+    (sum, item) => sum + (item.priceEstimate || 0) * (item.quantity || 1), 0
+  );
+  const totalPurchased = items.filter(i => i.purchased).reduce(
+    (sum, item) => sum + (item.priceReal > 0 ? item.priceReal : item.priceEstimate || 0) * (item.quantity || 1), 0
+  );
   const purchasedCount = items.filter(i => i.purchased).length;
   const progress = totalEstimated > 0 ? (totalPurchased / totalEstimated) * 100 : 0;
 
@@ -133,20 +173,22 @@ export default function ShoppingList() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setShowHistory(true)}
-            className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
-            title="Historial"
-          >
-            <HistoryIcon size={20} />
-          </button>
-          <button
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowHistory(true)}
+              className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
+              title="Historial"
+            >
+              <HistoryIcon size={20} />
+            </button>
+            <button
               onClick={() => setShowSettings(true)}
               className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
               title="Ajustes"
             >
               <SettingsIcon size={20} />
-          </button>
+            </button>
+          </div>
         </div>
 
         {/* Summary Card */}
@@ -180,34 +222,53 @@ export default function ShoppingList() {
 
       {/* Add Item Form */}
       <form onSubmit={addItem} className="p-4 bg-white border-b border-neutral-100">
+        <input
+          type="text"
+          placeholder="¿Qué falta comprar?"
+          value={newItemName}
+          onChange={(e) => setNewItemName(e.target.value)}
+          className="w-full px-4 py-2.5 rounded-xl bg-neutral-100 border border-transparent focus:bg-white focus:border-orange-500 focus:outline-none transition-all text-sm mb-2"
+        />
         <div className="flex gap-2">
-          <div className="flex-1 space-y-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">$</span>
             <input
-              type="text"
-              placeholder="¿Qué falta comprar?"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-neutral-100 border border-transparent focus:bg-white focus:border-orange-500 focus:outline-none transition-all text-sm"
+              type="number"
+              step="1"
+              min="0"
+              placeholder="Precio estimado"
+              value={newItemPrice}
+              onChange={(e) => setNewItemPrice(e.target.value)}
+              className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-neutral-100 border border-transparent focus:bg-white focus:border-orange-500 focus:outline-none transition-all text-sm"
             />
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">$</span>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                placeholder="Precio estimado (opcional)"
-                value={newItemPrice}
-                onChange={(e) => setNewItemPrice(e.target.value)}
-                className="w-full pl-7 pr-4 py-2.5 rounded-xl bg-neutral-100 border border-transparent focus:bg-white focus:border-orange-500 focus:outline-none transition-all text-sm"
-              />
-            </div>
           </div>
+
+          <div className="flex items-center gap-2 bg-neutral-100 rounded-xl px-2 w-24 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setNewItemQty(q => Math.max(1, q - 1))}
+              className="text-neutral-500 hover:text-neutral-700 p-1"
+            >
+              <Minus size={14} />
+            </button>
+            <span className="flex-1 text-center text-sm font-medium text-neutral-900">
+              {newItemQty}
+            </span>
+            <button
+              type="button"
+              onClick={() => setNewItemQty(q => q + 1)}
+              className="text-neutral-500 hover:text-neutral-700 p-1"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+
           <button
             type="submit"
             disabled={!newItemName.trim()}
-            className="bg-orange-500 text-white px-4 rounded-xl hover:bg-orange-600 disabled:opacity-40 transition-all flex items-center justify-center self-stretch"
+            className="bg-orange-500 text-white px-4 rounded-xl hover:bg-orange-600 disabled:opacity-40 transition-all flex items-center justify-center flex-shrink-0"
           >
-            <Plus size={24} />
+            <Plus size={22} />
           </button>
         </div>
       </form>
@@ -227,53 +288,74 @@ export default function ShoppingList() {
         ) : (
           <div className="space-y-2">
             <AnimatePresence mode="popLayout">
-              {items.map((item) => (
-                <motion.div
-                  key={item.id}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className={cn(
-                    'bg-white p-4 rounded-xl border border-neutral-200 flex items-center gap-3 transition-all',
-                    item.purchased && 'opacity-50 bg-neutral-50'
-                  )}
-                >
-                  <button
-                    onClick={() => togglePurchased(item)}
+              {items.map((item) => {
+                const qty = item.quantity || 1;
+                const unitPrice = item.purchased && item.priceReal > 0 ? item.priceReal : item.priceEstimate;
+                const totalPrice = unitPrice * qty;
+
+                return (
+                  <motion.div
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
                     className={cn(
-                      'transition-colors flex-shrink-0',
-                      item.purchased ? 'text-orange-500' : 'text-neutral-300 hover:text-neutral-400'
+                      'bg-white p-4 rounded-xl border border-neutral-200 flex items-center gap-3 transition-all',
+                      item.purchased && 'opacity-50 bg-neutral-50'
                     )}
                   >
-                    {item.purchased
-                      ? <CheckCircle2 size={24} />
-                      : <Circle size={24} />
-                    }
-                  </button>
+                    <button
+                      onClick={() => handleCircleClick(item)}
+                      className={cn(
+                        'transition-colors flex-shrink-0',
+                        item.purchased ? 'text-orange-500' : 'text-neutral-300 hover:text-neutral-400'
+                      )}
+                    >
+                      {item.purchased
+                        ? <CheckCircle2 size={24} />
+                        : <Circle size={24} />
+                      }
+                    </button>
 
-                  <div className="flex-1 min-w-0">
-                    <p className={cn(
-                      'font-medium text-neutral-900 truncate',
-                      item.purchased && 'line-through text-neutral-400'
-                    )}>
-                      {item.name}
-                    </p>
-                    {item.priceEstimate > 0 && (
-                      <p className="text-xs text-neutral-500">
-                        ${item.priceEstimate.toLocaleString('es-CL')}
-                      </p>
-                    )}
-                  </div>
+                    <button
+                      onClick={() => setSelectedItem(item)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <p className={cn(
+                          'font-medium text-neutral-900 truncate',
+                          item.purchased && 'line-through text-neutral-400'
+                        )}>
+                          {item.name}
+                        </p>
+                        {qty > 1 && (
+                          <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+                            x{qty}
+                          </span>
+                        )}
+                      </div>
+                      {totalPrice > 0 && (
+                        <p className="text-xs text-neutral-500">
+                          {qty > 1
+                            ? `$${unitPrice.toLocaleString('es-CL')} c/u · $${totalPrice.toLocaleString('es-CL')} total`
+                            : `$${totalPrice.toLocaleString('es-CL')}`}
+                          {item.purchased && item.priceReal > 0 && (
+                            <span className="text-orange-500 font-medium"> (real)</span>
+                          )}
+                        </p>
+                      )}
+                    </button>
 
-                  <button
-                    onClick={() => deleteItem(item.id)}
-                    className="p-2 text-neutral-300 hover:text-red-500 transition-colors flex-shrink-0"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </motion.div>
-              ))}
+                    <button
+                      onClick={() => deleteItem(item.id)}
+                      className="p-2 text-neutral-300 hover:text-red-500 transition-colors flex-shrink-0"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
 
             {/* Clear purchased button */}
@@ -308,8 +390,16 @@ export default function ShoppingList() {
           </div>
         )}
       </main>
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+
+      {selectedItem && (
+        <ItemDetail
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onConfirm={confirmPurchase}
+        />
+      )}
       {showHistory && <History onClose={() => setShowHistory(false)} />}
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

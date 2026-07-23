@@ -138,16 +138,22 @@ export default function History({ onClose }: { onClose: () => void }) {
                                 className="overflow-hidden"
                               >
                                 <div className="px-4 pb-4 space-y-1 border-t border-neutral-100 pt-3">
-                                  {entry.items.map((item, i) => (
-                                    <div key={i} className="flex justify-between items-center py-1">
-                                      <p className="text-sm text-neutral-700">{item.name}</p>
-                                      {item.priceEstimate > 0 && (
-                                        <p className="text-xs text-neutral-400">
-                                          ${item.priceEstimate.toLocaleString('es-CL')}
+                                  {entry.items.map((item, i) => {
+                                    const price = item.priceReal > 0 ? item.priceReal : item.priceEstimate;
+                                    const qty = item.quantity || 1;
+                                    return (
+                                      <div key={i} className="flex justify-between items-center py-1">
+                                        <p className="text-sm text-neutral-700">
+                                          {item.name} {qty > 1 && <span className="text-neutral-400">x{qty}</span>}
                                         </p>
-                                      )}
-                                    </div>
-                                  ))}
+                                        {price > 0 && (
+                                          <p className="text-xs text-neutral-400">
+                                            ${(price * qty).toLocaleString('es-CL')}
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </motion.div>
                             )}

@@ -19,6 +19,8 @@ export interface ShoppingItem {
   name: string;
   purchased: boolean;
   priceEstimate: number;
+  priceReal: number;
+  quantity: number;
   addedBy: string;
   createdAt: unknown;
 }
@@ -26,6 +28,8 @@ export interface ShoppingItem {
 export interface HistoryItem {
   name: string;
   priceEstimate: number;
+  priceReal: number;
+  quantity: number;
 }
 
 export interface HistoryEntry {
