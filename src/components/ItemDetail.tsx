@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ShoppingItem } from '../types';
@@ -18,6 +18,27 @@ export default function ItemDetail({ item, onClose, onConfirm }: Props) {
         : ''
   );
 
+  // Ajuste para iOS: mantener el panel visible sobre el teclado
+  const [viewport, setViewport] = useState({ height: window.innerHeight, top: 0 });
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleResize = () => {
+      setViewport({ height: vv.height, top: vv.offsetTop });
+    };
+
+    vv.addEventListener('resize', handleResize);
+    vv.addEventListener('scroll', handleResize);
+    handleResize();
+
+    return () => {
+      vv.removeEventListener('resize', handleResize);
+      vv.removeEventListener('scroll', handleResize);
+    };
+  }, []);
+
   const quantity = item.quantity || 1;
   const realNum = parseFloat(priceReal) || 0;
   const total = realNum * quantity;
@@ -27,7 +48,8 @@ export default function ItemDetail({ item, onClose, onConfirm }: Props) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center"
+      className="fixed left-0 right-0 bg-black/50 z-50 flex items-end justify-center"
+      style={{ top: viewport.top, height: viewport.height }}
       onClick={onClose}
     >
       <motion.div
@@ -35,7 +57,7 @@ export default function ItemDetail({ item, onClose, onConfirm }: Props) {
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 25 }}
-        className="bg-white w-full max-w-md rounded-t-3xl p-6 pb-10"
+        className="bg-white w-full max-w-md rounded-t-3xl p-6 pb-8 max-h-full overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-start mb-1">

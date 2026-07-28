@@ -15,8 +15,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { ShoppingItem } from '../types';
-import { cn } from '../lib/utils';
 import { cn, capitalize } from '../lib/utils';
+import { useState, useEffect, useMemo } from 'react';
 
 export default function ShoppingList() {
   const { user, familyId, familyName } = useStore();
@@ -29,6 +29,7 @@ export default function ShoppingList() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ShoppingItem | null>(null);
+  const [sortBy, setSortBy] = useState<'recent' | 'az' | 'price-desc' | 'price-asc'>('recent');
 
   useEffect(() => {
     if (!familyId) return;
@@ -158,6 +159,29 @@ export default function ShoppingList() {
   const purchasedCount = items.filter(i => i.purchased).length;
   const progress = totalEstimated > 0 ? (totalPurchased / totalEstimated) * 100 : 0;
 
+  const sortedItems = useMemo(() => {
+  const pending = items.filter(i => !i.purchased);
+  const purchased = items.filter(i => i.purchased);
+
+  const sortFn = (a: ShoppingItem, b: ShoppingItem) => {
+    const totalA = (a.priceEstimate || 0) * (a.quantity || 1);
+    const totalB = (b.priceEstimate || 0) * (b.quantity || 1);
+    switch (sortBy) {
+      case 'az': return a.name.localeCompare(b.name, 'es');
+      case 'price-desc': return totalB - totalA;
+      case 'price-asc': return totalA - totalB;
+      default: return 0;
+    }
+  };
+
+  if (sortBy !== 'recent') {
+    pending.sort(sortFn);
+    purchased.sort(sortFn);
+  }
+
+  return [...pending, ...purchased];
+  }, [items, sortBy]);
+
   return (
     <div className="max-w-md mx-auto min-h-screen bg-neutral-50 flex flex-col">
       {/* Header */}
@@ -276,6 +300,23 @@ export default function ShoppingList() {
 
       {/* List */}
       <main className="flex-1 p-4 overflow-y-auto">
+        {items.length > 0 && (
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">
+              {items.length} producto{items.length !== 1 ? 's' : ''}
+            </p>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              className="text-xs bg-neutral-100 rounded-lg px-2 py-1.5 text-neutral-600 border-none focus:outline-none"
+            >
+              <option value="recent">Más recientes</option>
+              <option value="az">Nombre (A-Z)</option>
+              <option value="price-desc">Precio: mayor a menor</option>
+              <option value="price-asc">Precio: menor a mayor</option>
+            </select>
+          </div>
+        )}
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
@@ -289,7 +330,7 @@ export default function ShoppingList() {
         ) : (
           <div className="space-y-2">
             <AnimatePresence mode="popLayout">
-              {items.map((item) => {
+              {sortedItems.map((item) => {
                 const qty = item.quantity || 1;
                 const unitPrice = item.purchased && item.priceReal > 0 ? item.priceReal : item.priceEstimate;
                 const totalPrice = unitPrice * qty;
