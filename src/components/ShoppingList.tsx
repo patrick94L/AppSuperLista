@@ -16,6 +16,7 @@ import { db } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { ShoppingItem } from '../types';
 import { cn } from '../lib/utils';
+import { cn, capitalize } from '../lib/utils';
 
 export default function ShoppingList() {
   const { user, familyId, familyName } = useStore();
@@ -59,7 +60,7 @@ export default function ShoppingList() {
 
     try {
       await addDoc(collection(db, 'families', familyId, 'shoppingList'), {
-        name: newItemName.trim(),
+        name: capitalize(newItemName),
         purchased: false,
         priceEstimate: parseFloat(newItemPrice) || 0,
         priceReal: 0,

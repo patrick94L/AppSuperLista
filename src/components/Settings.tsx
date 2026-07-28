@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot, getDoc } from 'firebase/firestore';
-import { Copy, Check, Share2, Users, X, LogOut } from 'lucide-react';
+import { doc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
+import { updateProfile } from 'firebase/auth';
+import { Copy, Check, Share2, Users, X, LogOut, Pencil } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { motion } from 'motion/react';
@@ -16,6 +17,9 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const [inviteCode, setInviteCode] = useState('');
   const [members, setMembers] = useState<Member[]>([]);
   const [copied, setCopied] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(user?.displayName || '');
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => {
     if (!familyId) return;
@@ -39,11 +43,9 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               displayName: d.displayName || null
             });
           } else {
-            // Usuario sin perfil en Firestore — mostrar UID parcial
             memberData.push({ uid, email: '(usuario sin perfil)', displayName: null });
           }
         } catch {
-          // Sin permiso para leer ese usuario — igual lo mostramos
           if (uid === user?.uid) {
             memberData.push({
               uid,
@@ -59,7 +61,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
     });
 
     return () => unsubFamily();
-  }, [familyId]);
+  }, [familyId, user]);
 
   const copyCode = async () => {
     await navigator.clipboard.writeText(inviteCode);
@@ -76,6 +78,20 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       });
     } else {
       copyCode();
+    }
+  };
+
+  const saveName = async () => {
+    if (!user || !nameInput.trim()) return;
+    setSavingName(true);
+    try {
+      await updateProfile(user, { displayName: nameInput.trim() });
+      await updateDoc(doc(db, 'users', user.uid), { displayName: nameInput.trim() });
+      setEditingName(false);
+    } catch (error) {
+      console.error('Error updating name:', error);
+    } finally {
+      setSavingName(false);
     }
   };
 
@@ -102,6 +118,37 @@ export default function Settings({ onClose }: { onClose: () => void }) {
             <X size={20} />
           </button>
         </div>
+
+        {/* Mi nombre */}
+        <p className="text-sm text-neutral-500 mb-2">Mi nombre / alias</p>
+        {editingName ? (
+          <div className="flex gap-2 mb-6">
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 border-2 border-orange-500 focus:outline-none text-sm"
+              autoFocus
+            />
+            <button
+              onClick={saveName}
+              disabled={savingName || !nameInput.trim()}
+              className="bg-orange-500 text-white px-4 rounded-xl text-sm font-bold disabled:opacity-50"
+            >
+              {savingName ? '...' : 'Guardar'}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { setNameInput(user?.displayName || ''); setEditingName(true); }}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-neutral-100 mb-6 text-left"
+          >
+            <span className="text-sm font-medium text-neutral-900">
+              {user?.displayName || 'Sin nombre — toca para agregar'}
+            </span>
+            <Pencil size={14} className="text-neutral-400" />
+          </button>
+        )}
 
         {/* Nombre familia */}
         <p className="text-sm text-neutral-500 mb-1">Familia</p>
