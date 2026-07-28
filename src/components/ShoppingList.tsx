@@ -16,6 +16,7 @@ import { useStore } from '../store/useStore';
 import { ShoppingItem } from '../types';
 import { cn, capitalize } from '../lib/utils';
 import { useState, useEffect, useMemo } from 'react';
+import { categorize, CATEGORY_ICONS } from '../lib/categories';
 
 export default function ShoppingList() {
   const { user, familyId, familyName } = useStore();
@@ -61,6 +62,7 @@ export default function ShoppingList() {
     try {
       await addDoc(collection(db, 'families', familyId, 'shoppingList'), {
         name: capitalize(newItemName),
+        category: categorize(newItemName),
         purchased: false,
         priceEstimate: parseFloat(newItemPrice) || 0,
         priceReal: 0,

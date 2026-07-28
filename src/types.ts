@@ -21,6 +21,7 @@ export interface ShoppingItem {
   priceEstimate: number;
   priceReal: number;
   quantity: number;
+  category: string;
   addedBy: string;
   createdAt: unknown;
 }
