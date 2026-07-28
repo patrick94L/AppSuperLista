@@ -1,7 +1,6 @@
 import Settings from './Settings';
 import History from './History';
 import ItemDetail from './ItemDetail';
-import { useState, useEffect } from 'react';
 import {
   collection, addDoc, updateDoc, deleteDoc,
   doc, onSnapshot, query, orderBy, serverTimestamp
