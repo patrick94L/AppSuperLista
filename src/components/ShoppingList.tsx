@@ -88,11 +88,7 @@ export default function ShoppingList() {
   };
 
   const handleCircleClick = (item: ShoppingItem) => {
-    if (item.purchased) {
-      togglePurchased(item);
-    } else {
-      setSelectedItem(item);
-    }
+  togglePurchased(item);
   };
 
   const confirmPurchase = async (priceReal: number) => {
