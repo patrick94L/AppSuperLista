@@ -363,9 +363,10 @@ export default function ShoppingList() {
                     >
                       <div className="flex items-center gap-2">
                         <p className={cn(
-                          'font-medium text-neutral-900 truncate',
+                          'font-medium text-neutral-900 truncate flex items-center gap-1',
                           item.purchased && 'line-through text-neutral-400'
                         )}>
+                          <span>{CATEGORY_ICONS[item.category as keyof typeof CATEGORY_ICONS] || '📦'}</span>
                           {item.name}
                         </p>
                         {qty > 1 && (
