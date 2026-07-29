@@ -16,7 +16,7 @@ import { useStore } from '../store/useStore';
 import { ShoppingItem } from '../types';
 import { cn, capitalize } from '../lib/utils';
 import { useState, useEffect, useMemo } from 'react';
-import { categorize, CATEGORY_ICONS } from '../lib/categories';
+import { categorize, CATEGORY_ICONS, CATEGORY_ORDER } from '../lib/categories';
 
 export default function ShoppingList() {
   const { user, familyId, familyName } = useStore();
@@ -29,7 +29,7 @@ export default function ShoppingList() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ShoppingItem | null>(null);
-  const [sortBy, setSortBy] = useState<'recent' | 'az' | 'price-desc' | 'price-asc'>('recent');
+  const [sortBy, setSortBy] = useState<'recent' | 'az' | 'price-desc' | 'price-asc' | 'category'>('recent');
 
   useEffect(() => {
     if (!familyId) return;
@@ -311,6 +311,7 @@ export default function ShoppingList() {
               <option value="az">Nombre (A-Z)</option>
               <option value="price-desc">Precio: mayor a menor</option>
               <option value="price-asc">Precio: menor a mayor</option>
+              <option value="category">Por categoría</option>
             </select>
           </div>
         )}
@@ -325,78 +326,50 @@ export default function ShoppingList() {
             <p className="text-xs mt-1">¡Empieza a agregar productos!</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            <AnimatePresence mode="popLayout">
-              {sortedItems.map((item) => {
-                const qty = item.quantity || 1;
-                const unitPrice = item.purchased && item.priceReal > 0 ? item.priceReal : item.priceEstimate;
-                const totalPrice = unitPrice * qty;
-
+          
+          <div className="space-y-4">
+            {sortBy === 'category' ? (
+              CATEGORY_ORDER.map((cat) => {
+                const catItems = sortedItems.filter(i => (i.category || categorize(i.name)) === cat);
+                if (catItems.length === 0) return null;
                 return (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className={cn(
-                      'bg-white p-4 rounded-xl border border-neutral-200 flex items-center gap-3 transition-all',
-                      item.purchased && 'opacity-50 bg-neutral-50'
-                    )}
-                  >
-                    <button
-                      onClick={() => handleCircleClick(item)}
-                      className={cn(
-                        'transition-colors flex-shrink-0',
-                        item.purchased ? 'text-orange-500' : 'text-neutral-300 hover:text-neutral-400'
-                      )}
-                    >
-                      {item.purchased
-                        ? <CheckCircle2 size={24} />
-                        : <Circle size={24} />
-                      }
-                    </button>
-
-                    <button
-                      onClick={() => setSelectedItem(item)}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <div className="flex items-center gap-2">
-                        <p className={cn(
-                          'font-medium text-neutral-900 truncate flex items-center gap-1',
-                          item.purchased && 'line-through text-neutral-400'
-                        )}>
-                          <span>{CATEGORY_ICONS[item.category as keyof typeof CATEGORY_ICONS] || '📦'}</span>
-                          {item.name}
-                        </p>
-                        {qty > 1 && (
-                          <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
-                            x{qty}
-                          </span>
-                        )}
-                      </div>
-                      {totalPrice > 0 && (
-                        <p className="text-xs text-neutral-500">
-                          {qty > 1
-                            ? `$${unitPrice.toLocaleString('es-CL')} c/u · $${totalPrice.toLocaleString('es-CL')} total`
-                            : `$${totalPrice.toLocaleString('es-CL')}`}
-                          {item.purchased && item.priceReal > 0 && (
-                            <span className="text-orange-500 font-medium"> (real)</span>
-                          )}
-                        </p>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => deleteItem(item.id)}
-                      className="p-2 text-neutral-300 hover:text-red-500 transition-colors flex-shrink-0"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </motion.div>
+                  <div key={cat}>
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      <span className="text-base">{CATEGORY_ICONS[cat]}</span>
+                      <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide">{cat}</p>
+                      <span className="text-xs text-neutral-300">({catItems.length})</span>
+                    </div>
+                    <div className="space-y-2">
+                      <AnimatePresence mode="popLayout">
+                        {catItems.map((item) => (
+                          <ItemRow
+                            key={item.id}
+                            item={item}
+                            onCircleClick={handleCircleClick}
+                            onSelect={setSelectedItem}
+                            onDelete={deleteItem}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  </div>
                 );
-              })}
-            </AnimatePresence>
+              })
+            ) : (
+              <div className="space-y-2">
+                <AnimatePresence mode="popLayout">
+                  {sortedItems.map((item) => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      onCircleClick={handleCircleClick}
+                      onSelect={setSelectedItem}
+                      onDelete={deleteItem}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
 
             {/* Clear purchased button */}
             {purchasedCount > 0 && (
@@ -428,6 +401,7 @@ export default function ShoppingList() {
               </div>
             )}
           </div>
+
         )}
       </main>
 
@@ -441,5 +415,73 @@ export default function ShoppingList() {
       {showHistory && <History onClose={() => setShowHistory(false)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
+  );
+}
+function ItemRow({ item, onCircleClick, onSelect, onDelete }: {
+  item: ShoppingItem;
+  onCircleClick: (item: ShoppingItem) => void;
+  onSelect: (item: ShoppingItem) => void;
+  onDelete: (id: string) => void;
+}) {
+  const qty = item.quantity || 1;
+  const unitPrice = item.purchased && item.priceReal > 0 ? item.priceReal : item.priceEstimate;
+  const totalPrice = unitPrice * qty;
+  const category = (item.category || 'Otros') as keyof typeof CATEGORY_ICONS;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className={cn(
+        'bg-white p-4 rounded-xl border border-neutral-200 flex items-center gap-3 transition-all',
+        item.purchased && 'opacity-50 bg-neutral-50'
+      )}
+    >
+      <button
+        onClick={() => onCircleClick(item)}
+        className={cn(
+          'transition-colors flex-shrink-0',
+          item.purchased ? 'text-orange-500' : 'text-neutral-300 hover:text-neutral-400'
+        )}
+      >
+        {item.purchased ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+      </button>
+
+      <button onClick={() => onSelect(item)} className="flex-1 min-w-0 text-left">
+        <div className="flex items-center gap-2">
+          <p className={cn(
+            'font-medium text-neutral-900 truncate flex items-center gap-1',
+            item.purchased && 'line-through text-neutral-400'
+          )}>
+            <span>{CATEGORY_ICONS[category] || '📦'}</span>
+            {item.name}
+          </p>
+          {qty > 1 && (
+            <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+              x{qty}
+            </span>
+          )}
+        </div>
+        {totalPrice > 0 && (
+          <p className="text-xs text-neutral-500">
+            {qty > 1
+              ? `$${unitPrice.toLocaleString('es-CL')} c/u · $${totalPrice.toLocaleString('es-CL')} total`
+              : `$${totalPrice.toLocaleString('es-CL')}`}
+            {item.purchased && item.priceReal > 0 && (
+              <span className="text-orange-500 font-medium"> (real)</span>
+            )}
+          </p>
+        )}
+      </button>
+
+      <button
+        onClick={() => onDelete(item.id)}
+        className="p-2 text-neutral-300 hover:text-red-500 transition-colors flex-shrink-0"
+      >
+        <Trash2 size={18} />
+      </button>
+    </motion.div>
   );
 }
